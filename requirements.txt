@@ -4,3 +4,6 @@
 # python-pptx
 # scikit-learn
 # sentence-transformers
+pdfplumber
+python-docx
+python-pptx
