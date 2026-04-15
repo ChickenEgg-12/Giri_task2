@@ -1,0 +1,6 @@
+# Add your dependencies here, e.g.:
+# pdfplumber
+# python-docx
+# python-pptx
+# scikit-learn
+# sentence-transformers
