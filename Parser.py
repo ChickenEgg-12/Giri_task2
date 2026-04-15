@@ -68,16 +68,18 @@ def parse_eml(file_path):
 def parse_json_glossary(file_path):
     glossary = {}
 
+    import json
     with open(file_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    for key, val in data.get("V", {}).items():
-        definition = val.get("definition", "")
-        if definition:
-            glossary[key] = definition
+    # Handle flexible JSON formats
+    for key, val in data.items():
+        if isinstance(val, dict):
+            definition = val.get("definition") or val.get("desc") or ""
+            if definition:
+                glossary[key.lower()] = definition
 
     return glossary
-
 #Loader
 def load_documents(base_path="test_files"):
     documents = []
