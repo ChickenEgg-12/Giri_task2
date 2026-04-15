@@ -13,7 +13,8 @@ EMBEDDINGS = None
 TFIDF = None
 TFIDF_MATRIX = None
 
-#Init
+
+# Init
 def init():
     global DOCUMENTS, GLOSSARY, INITIALIZED
 
@@ -21,23 +22,69 @@ def init():
         DOCUMENTS, GLOSSARY = load_documents()
         INITIALIZED = True
 
+# Normalize query (synonyms)
+def normalize_query(query):
+    query = query.lower()
 
-# Query type detection
+    synonyms = {
+        "share of wallet": "share_of_wallet",
+        "brand awareness": "frm_brand_awareness",
+        "trialists": "probable_trialists"
+    }
+
+    for k, v in synonyms.items():
+        if k in query:
+            query += " " + v
+
+    return query
+
+
+# Detect query type
 def is_variable_query(query):
-    return "_" in query
+    if "_" in query:
+        return True
+
+    keywords = ["what does", "define", "what is", "mean"]
+    if any(k in query for k in keywords):
+        return True
+
+    return False
 
 
-# Glossary lookup
+# Improved glossary lookup
 def glossary_lookup(query):
     query_lower = query.lower()
 
+    best_match = None
+    best_score = 0
+
     for key, definition in GLOSSARY.items():
-        if key.lower() in query_lower:
-            return [{
-                "text": definition,
+
+        #Exact match
+        if key in query_lower:
+            return {
+                "text": f"{key.replace('_', ' ')}: {definition}",
                 "source": "glossary",
                 "score": 1.0
-            }]
+            }
+
+        #Token overlap
+        key_tokens = key.replace("_", " ").split()
+        query_tokens = query_lower.split()
+
+        overlap = len(set(key_tokens) & set(query_tokens))
+
+        if overlap > best_score:
+            best_score = overlap
+            best_match = (key, definition)
+
+    if best_match and best_score >= 2:
+        return {
+            "text": best_match[1],
+            "source": "glossary",
+            "score": 0.95
+        }
+
     return None
 
 
@@ -58,37 +105,39 @@ def build_embeddings():
     EMBEDDINGS = MODEL.encode(texts, convert_to_tensor=True)
 
 
-# Retrieval function
+#Retrieve function
 def retrieve(query: str) -> list[dict]:
     init()
 
-    #Narrow queries
-    if is_variable_query(query):
-        result = glossary_lookup(query)
-        if result:
-            return result
-
     global TFIDF, EMBEDDINGS
 
-    # Building index
+    #Normalize query
+    query = normalize_query(query)
+
+    #Build indexes
     if TFIDF is None:
         build_tfidf()
 
     if EMBEDDINGS is None:
         build_embeddings()
 
-    #Embedding similarity
+    #Embedding scores
     query_emb = MODEL.encode(query, convert_to_tensor=True)
     emb_scores = util.cos_sim(query_emb, EMBEDDINGS)[0].cpu().numpy()
 
-    #TF-IDF similarity
+    #TF-IDF scores
     query_vec = TFIDF.transform([query])
     tfidf_scores = (TFIDF_MATRIX @ query_vec.T).toarray().flatten()
 
     #Hybrid scoring
     final_scores = 0.6 * emb_scores + 0.4 * tfidf_scores
 
-    #Top 5 results
+    #Glossary result
+    glossary_result = None
+    if is_variable_query(query):
+        glossary_result = glossary_lookup(query)
+
+    #Top results
     top_idx = np.argsort(final_scores)[::-1][:5]
 
     results = []
@@ -98,5 +147,10 @@ def retrieve(query: str) -> list[dict]:
             "source": DOCUMENTS[i]["source"],
             "score": float(final_scores[i])
         })
+
+    #Add glossary at top
+    if glossary_result:
+        results.insert(0, glossary_result)
+        results = results[:5]
 
     return results
