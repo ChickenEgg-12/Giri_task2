@@ -7,3 +7,6 @@
 pdfplumber
 python-docx
 python-pptx
+scikit-learn
+numpy
+sentence-transformers

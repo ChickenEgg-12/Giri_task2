@@ -64,7 +64,7 @@ def parse_eml(file_path):
     else:
         return msg.get_content()
 
-
+#JSON Glossary
 def parse_json_glossary(file_path):
     glossary = {}
 
